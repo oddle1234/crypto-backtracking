@@ -90,16 +90,35 @@ def get_funding_rate(symbol, interval='8h', limit=1000):
         print(f"Feil ved henting av funding rate data: {e}")
         return pd.DataFrame()
 
+# Funksjon for å beregne limitene basert på valgt intervall
+def calculate_limits(interval, funding_limit=1000, oi_limit=500, price_volume_limit=1000):
+    # Sett limitene basert på intervallet
+    if interval in ['1h', '2h', '4h']:
+        # Beregn antall datapunkter avhengig av intervallet
+        limit_oi = min(oi_limit, price_volume_limit)
+        limit_price_volume = min(price_volume_limit, funding_limit)
+    elif interval == '8h':
+        limit_oi = oi_limit
+        limit_price_volume = price_volume_limit
+    else:
+        limit_oi = oi_limit
+        limit_price_volume = price_volume_limit
+    
+    return limit_oi, limit_price_volume
+
 # Funksjon for å kombinere pris, volum, funding rate og Open Interest
-def get_combined_data(symbol, interval='1h', limit_price_volume=1000, limit_funding_rate=1000, total_limit_oi=500):
+def get_combined_data(symbol, interval='1h', funding_limit=1000, total_limit_oi=500, price_volume_limit=1000):
+    # Beregn limitene for de forskjellige datasettene
+    limit_oi, limit_price_volume = calculate_limits(interval, funding_limit, total_limit_oi, price_volume_limit)
+
     # Hent pris og volumdata
     df_price_volume = get_price_volume(symbol, interval, limit_price_volume)
     
     # Hent funding rate data
-    df_funding = get_funding_rate(symbol, interval, limit_funding_rate)
+    df_funding = get_funding_rate(symbol, interval, funding_limit)
 
     # Hent historisk Open Interest
-    df_oi = get_historical_oi(symbol, interval=interval, total_limit=total_limit_oi)
+    df_oi = get_historical_oi(symbol, interval=interval, total_limit=limit_oi)
 
     # Kombiner dataene ved å bruke en indre sammenføyning på 'timestamp'
     combined_data = df_price_volume.join(df_funding, how='inner').join(df_oi, how='inner')
@@ -148,13 +167,14 @@ def plot_data(df_combined, symbol):
 symbol = 'ETHUSDT'
 
 # Sett intervall og limits her
-interval = '4h'  # Eksempel: kan endres til '1h', '2h', '4h', '8h' etc.
-limit_price_volume = 1000
-limit_funding_rate = 1000  # Total limit for funding rate
-total_limit_oi = 1000      # Juster etter behov
+interval = '1h'  # Eksempel: kan endres til '1h', '2h', '4h', '8h' etc.
+funding_limit = 1000  # Funding rate limit er alltid 1000
+
+# Beregn dynamiske limits for pris/volum og OI basert på intervallet
+total_limit_oi, price_volume_limit = calculate_limits(interval, funding_limit)
 
 # Hent de kombinerte dataene
-combined_data = get_combined_data(symbol, interval, limit_price_volume, limit_funding_rate, total_limit_oi)
+combined_data = get_combined_data(symbol, interval, funding_limit, total_limit_oi, price_volume_limit)
 
 # Hvis kombinerte data er hentet, visualiser
 if not combined_data.empty:
